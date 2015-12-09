@@ -44,8 +44,8 @@
             "title":"Comment"
         },
         {
-            "id": "comment_info",
-            "title":"Comment Info"
+            "id": "comment_author_name",
+            "title":"Author"
         },
         {
             "id": "timetracking_timeSpent",

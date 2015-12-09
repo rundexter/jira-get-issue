@@ -2,26 +2,30 @@ var JiraApi = require('jira').JiraApi,
     querystring = require('querystring'),
     _ = require('lodash');
 
-var globalPickResult = {
+var globalPickResults = {
     'self': 'self',
-    'fields.project.name': 'project_name',
-    'fields.summary': 'summary',
-    'fields.description': 'description',
-    'fields.attachment': {
-        key: 'attachment_self',
-        fields: {
-            self: 'self'
-        }
+    project_name: 'fields.project.name',
+    summary: 'fields.summary',
+    description: 'fields.description',
+    timetracking_timeSpent: 'fields.timetracking.timeSpent',
+    attachment_self: {
+        keyName: 'fields.attachment',
+        fields: [
+            'self'
+        ]
     },
-    'fields.comment.body': 'comment_body',
-    'fields.comment.comments': {
-        key: 'comment_author_name',
-        fields: {
-            'author.name': 'author_name',
-            'body': 'body'
-        }
+    comment_author_name: {
+        keyName: 'fields.comment.comments',
+        fields: [
+            'author.name'
+        ]
     },
-    'fields.timetracking.timeSpent': 'timetracking_timeSpent'
+    comment_body: {
+        keyName: 'fields.comment.comments',
+        fields: [
+            'body'
+        ]
+    }
 };
 
 module.exports = {
@@ -30,35 +34,36 @@ module.exports = {
      * Return pick result.
      *
      * @param output
-     * @param pickResult
      * @param pickTemplate
      * @returns {*}
      */
     pickResult: function (output, pickTemplate) {
-        var result = {};
+        var result = _.isArray(pickTemplate)? [] : {};
         // map template keys
-        _.map(_.keys(pickTemplate), function (templateKey) {
+        _.map(pickTemplate, function (templateValue, templateKey) {
 
-            var oneTemplateObject = pickTemplate[templateKey];
-            var outputKeyValue = _.get(output, templateKey, undefined);
+            var outputValueByKey = _.get(output, templateValue.keyName || templateValue, undefined);
 
-            if (_.isUndefined(outputKeyValue)) {
-
+            if (_.isUndefined(outputValueByKey))
                 return result;
-            }
-            // if template key is object - transform, else just save
-            if (_.isObject(oneTemplateObject)) {
-                // if data is array - map and transform, else once transform
-                if (_.isArray(outputKeyValue)) {
 
-                    result = _.merge(result, this._mapPickArrays(outputKeyValue, oneTemplateObject));
+            // if template key is object - transform, else just save
+            if (_.isArray(pickTemplate)) {
+
+                result = outputValueByKey;
+            } else if (_.isObject(templateValue)) {
+                // if data is array - map and transform, else once transform
+                if (_.isArray(outputValueByKey)) {
+                    var mapPickArrays = this._mapPickArrays(outputValueByKey, templateKey, templateValue);
+
+                    result = _.isEmpty(result)? mapPickArrays : _.merge(result, mapPickArrays);
                 } else {
 
-                    result[oneTemplateObject.key] = this.pickResult(outputKeyValue, oneTemplateObject.fields);
+                    result[templateKey] = this.pickResult(outputValueByKey, templateValue.fields);
                 }
             } else {
 
-                _.set(result, oneTemplateObject, outputKeyValue);
+                _.set(result, templateKey, outputValueByKey);
             }
         }, this);
 
@@ -69,26 +74,26 @@ module.exports = {
      * System func for pickResult.
      *
      * @param mapValue
+     * @param templateKey
      * @param templateObject
      * @returns {*}
      * @private
      */
-    _mapPickArrays: function (mapValue, templateObject) {
-
+    _mapPickArrays: function (mapValue, templateKey, templateObject) {
         var arrayResult = [],
-            result = templateObject.key? {} : [];
+            result = templateKey === '-'? [] : {};
 
         _.map(mapValue, function (inOutArrayValue) {
 
             arrayResult.push(this.pickResult(inOutArrayValue, templateObject.fields));
         }, this);
 
-        if (templateObject.key) {
-
-            result[templateObject.key] = arrayResult;
-        } else {
+        if (templateKey === '-') {
 
             result = arrayResult;
+        } else {
+
+            result[templateKey] = arrayResult;
         }
 
         return result;
@@ -111,7 +116,7 @@ module.exports = {
             apiVers: dexter.environment('jira_apiVers', '2')
         };
 
-        if (!dexter.environment('jira_host') || !dexter.environment('user') || !dexter.environment('password')) {
+        if (!dexter.environment('jira_host') || !dexter.environment('jira_user') || !dexter.environment('jira_password')) {
 
             this.fail('A [jira_protocol, jira_port, jira_apiVers, *jira_host, *jira_user, *jira_password] environment has this module (* - required).');
 
@@ -149,14 +154,16 @@ module.exports = {
         if (step.input('issue').first()) {
 
             var issue = this.issueString(step);
+            var auth = this.authParams(dexter);
+
+            var jira = new JiraApi(auth.protocol, auth.host, auth.port, auth.user, auth.password, auth.apiVers);
 
             jira.findIssue(issue, function (error, issue) {
-                console.log(issue);
 
                 if (error)
                     this.fail(error);
                 else
-                    this.complete(this.pickResult(issue, globalPickResult));
+                    this.complete(this.pickResult(issue, globalPickResults));
             }.bind(this));
         } else {
 
