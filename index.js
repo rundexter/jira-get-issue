@@ -138,7 +138,7 @@ module.exports = {
             queryData.expand = step.input('expand').first();
 
         if (!_.isEmpty(queryData))
-            issue.concat('?' + querystring.encode(queryData));
+            issue = issue.concat('?' + querystring.encode(queryData));
 
         return issue;
     },
