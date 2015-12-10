@@ -151,23 +151,25 @@ module.exports = {
      */
     run: function(step, dexter) {
 
-        if (step.input('issue').first()) {
-
-            var issue = this.issueString(step);
-            var auth = this.authParams(dexter);
-
-            var jira = new JiraApi(auth.protocol, auth.host, auth.port, auth.user, auth.password, auth.apiVers);
-
-            jira.findIssue(issue, function (error, issue) {
-
-                if (error)
-                    this.fail(error);
-                else
-                    this.complete(this.pickResult(issue, globalPickResults));
-            }.bind(this));
-        } else {
+        var auth = this.authParams(dexter);
+        if (!step.input('issue').first()) {
 
             this.fail('A [issue] input need for this module.');
+            return;
         }
+
+        if (!auth)
+            return;
+
+        var issue = this.issueString(step);
+        var jira = new JiraApi(auth.protocol, auth.host, auth.port, auth.user, auth.password, auth.apiVers);
+
+        jira.findIssue(issue, function (error, issue) {
+
+            if (error)
+                this.fail(error);
+            else
+                this.complete(this.pickResult(issue, globalPickResults));
+        }.bind(this));
     }
 };
