@@ -52,5 +52,6 @@
             "title":"Time In"
         }
     ],
+    "icon": "dex-jira",
     "title": "Jira Get Issue" /* Required.A display name for the module */
 }
